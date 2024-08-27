@@ -1,6 +1,4 @@
-// // basic blockchain infrastructure and demonstrates how to initialize, mine blocks, and manage a transaction pool
-
-// mod blockchain {
+// // basic blockchain infrastructure and demonstrates how to initialize, mine blocks, and manage a transaction pool // mod blockchain {
 //     pub mod block;
 //     pub mod core;
 //     pub mod hashing;
@@ -21,13 +19,12 @@
 // fn main() {
 //     logging::setup_logger();
 
-
 //     let mut blockchain = Blockchain::new();
 //     let genesis_block = Blockchain::create_genesis_block();
 //     blockchain.chain.push(genesis_block);
-    
+
 //     let mut transaction_pool = TransactionPool::new();
-    
+
 //     for i in 1..=5 {
 //         let transaction = blockchain::transaction::Transaction::new(
 //             format!("Alice_{}", i),
@@ -36,7 +33,7 @@
 //         );
 //         transaction_pool.add_transaction(transaction);
 //     }
-    
+
 //     for i in 1..=20 {
 //         info!("Mining block {}", i);
 //         blockchain.mine_block(&mut transaction_pool);
@@ -45,7 +42,8 @@
 //     }
 // }
 
-#[macro_use] extern crate rocket;
+#[macro_use]
+extern crate rocket;
 mod blockchain {
     pub mod block;
     pub mod core;
@@ -63,6 +61,7 @@ mod blockchain {
 
 mod utils {
     pub mod logging;
+    pub mod calculations;
 }
 #[tokio::main]
 async fn main() {

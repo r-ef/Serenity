@@ -1,8 +1,12 @@
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::blockchain::block::Block;
 use crate::blockchain::hashing::Hashing;
+use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
 use crate::blockchain::db::core::Database;
+use crate::blockchain::wallet::Wallet;
+use crate::utils::calculations;
 use log::info;
 use serde::Serialize;
 
@@ -44,9 +48,21 @@ impl Blockchain {
         difficulty
     }
 
-    pub fn mine_block(&mut self, transaction_pool: &mut TransactionPool) {
+    pub fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) {
         let prev_block = self.chain.last().unwrap().clone();
-        let transactions = transaction_pool.pool.clone(); // Get transactions from the pool
+        let mut transactions = transaction_pool.pool.clone();
+    
+        let total_fees: f64 = transactions.iter().map(|tx| tx.fee).sum();
+    
+        let reward_transaction = Transaction {
+            sender: "block_reward".to_string(),
+            receiver: miner_address.to_string(),
+            amount: calculations::calculate_block_subsidy(self.chain.len() as u64) + total_fees,
+            fee: 0.0,
+            timestamp: chrono::Utc::now().timestamp() as u64,
+        };
+    
+        transactions.push(reward_transaction.clone());
     
         let mut new_block = Block {
             index: prev_block.index + 1,
@@ -63,10 +79,10 @@ impl Blockchain {
         let mut hasher = Hashing::new(new_block.clone());
         hasher.mine_block(self.difficulty);
         new_block.hash = hasher.block.hash.clone();
-    
-        self.db.insert_block(new_block.clone()).unwrap();
-    
+        self.db.insert_block(new_block.clone()).expect("Failed to insert block into database");
         self.chain.push(new_block);
+        let reward_amount = reward_transaction.clone().amount;
+        self.db.update_balance(miner_address, self.db.get_balance(miner_address).unwrap() + reward_amount).expect("Failed to update balance");
         transaction_pool.clear_pool();
         info!("Block mined and added to the chain");
     

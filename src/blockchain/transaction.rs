@@ -6,21 +6,23 @@ use rand::rngs::OsRng;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq,)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
     pub sender: String,
     pub receiver: String,
     pub amount: f64,
     pub timestamp: u64,
+    pub fee: f64,
 }
 
 impl Transaction {
-    pub fn new(sender: String, receiver: String, amount: f64, timestamp: u64) -> Transaction {
+    pub fn new(sender: String, receiver: String, amount: f64, timestamp: u64, fee: f64) -> Transaction {
         Transaction {
             sender,
             receiver,
             amount,
-            timestamp
+            timestamp,
+            fee
         }
     }
 

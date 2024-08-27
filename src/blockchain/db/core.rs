@@ -3,8 +3,9 @@ use log::debug;
 use r2d2::Pool;
 use r2d2_sqlite::{rusqlite::params, SqliteConnectionManager};
 use serde::Serialize;
-use serde_json::{from_str, to_string};
+use serde_json::from_str;
 use crate::blockchain::{block::Block, transaction::Transaction};
+use crate::utils::calculations::calculate_fee;
 
 #[derive(Debug)]
 pub struct Database {
@@ -38,6 +39,19 @@ impl Database {
         Database { pool }
     }
 
+    pub fn create_wallet_table(&self) -> Result<(), Error> {
+        let conn = self.pool.get().expect("Failed to get connection.");
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS wallets (
+                id INTEGER PRIMARY KEY,
+                address TEXT NOT NULL,
+                balance REAL NOT NULL
+            )",
+            [],
+        ).expect("Failed to create wallets table.");
+        Ok(())
+    }
+
     pub fn create_blocks_table(&self) -> Result<(), Error> {
         let conn = self.pool.get().expect("Failed to get connection.");
         conn.execute(
@@ -49,7 +63,7 @@ impl Database {
                 prev_hash TEXT NOT NULL,
                 hash TEXT NOT NULL,
                 nonce INTEGER NOT NULL,
-                transactions BLOB
+                transactions TEXT
             )",
             [],
         ).expect("Failed to create blocks table.");
@@ -74,6 +88,7 @@ impl Database {
     pub fn create_tables(&self) -> Result<(), Error> {
         self.create_blocks_table()?;
         self.create_transaction_table()?;
+        self.create_wallet_table()?;
         Ok(())
     }
 
@@ -105,6 +120,36 @@ impl Database {
         Ok(())
     }
 
+    pub fn remove_transaction(&self, transaction: &Transaction) -> Result<(), Error> {
+        let conn = self.pool.get().expect("Failed to get connection.");
+        conn.execute(
+            "DELETE FROM transactions WHERE sender = ?1 AND receiver = ?2 AND amount = ?3 AND timestamp = ?4",
+            params![
+                transaction.sender,
+                transaction.receiver,
+                transaction.amount,
+                transaction.timestamp,
+            ],
+        ).expect("Failed to remove transaction.");
+        Ok(())
+    }
+
+    pub fn get_balance(&self, address: &str) -> Result<f64, Error> {
+        let conn = self.pool.get().expect("Failed to get connection.");
+        let mut stmt = conn.prepare("SELECT balance FROM wallets WHERE address = ?1").expect("Failed to prepare query.");
+        let balance: f64 = stmt.query_row(params![address], |row| row.get(0)).unwrap_or(0.0);
+        Ok(balance)
+    }
+
+    pub fn update_balance(&self, address: &str, balance: f64) -> Result<(), Error> {
+        let conn = self.pool.get().expect("Failed to get connection.");
+        conn.execute(
+            "INSERT OR REPLACE INTO wallets (address, balance) VALUES (?1, ?2)",
+            params![address, balance],
+        ).expect("Failed to update balance.");
+        Ok(())
+    }
+
     pub fn get_transactions(&self) -> Result<Vec<Transaction>, Error> {
         let conn = self.pool.get().expect("Failed to get connection.");
         let mut stmt = conn.prepare("SELECT sender, receiver, amount, timestamp FROM transactions").expect("Failed to prepare query.");
@@ -114,6 +159,7 @@ impl Database {
                 receiver: row.get(1)?,
                 amount: row.get(2)?,
                 timestamp: row.get(3)?,
+                fee: calculate_fee(row.get(2)?),
             })
         }).expect("Failed to query transactions.");
     
@@ -126,10 +172,18 @@ impl Database {
 
     pub fn get_blocks(&self) -> Result<Vec<Block>, Error> {
         let conn = self.pool.get().expect("Failed to get connection.");
-        let mut stmt = conn.prepare("SELECT \"index\", timestamp, data, prev_hash, hash, nonce, transactions FROM blocks").expect("Failed to prepare query.");
+        let mut stmt = conn.prepare("SELECT \"index\", timestamp, data, prev_hash, hash, nonce, transactions FROM blocks")
+            .expect("Failed to prepare query.");
+    
         let block_iter = stmt.query_map([], |row| {
-            let transactions_json: String = row.get(6)?;
-            let transactions: Vec<Transaction> = from_str(&transactions_json).expect("Failed to deserialize transactions");
+            println!("Row: {:?}", row);
+    
+            let transactions_json: Option<String> = row.get(6)?;
+    
+            let transactions: Vec<Transaction> = match transactions_json {
+                Some(json) => serde_json::from_str(&json).expect("Failed to deserialize transactions"),
+                None => vec![], // If the column is NULL, use an empty vector
+            };
     
             Ok(Block {
                 index: row.get(0)?,
