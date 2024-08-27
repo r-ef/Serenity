@@ -1,0 +1,1 @@
+- Implement user authentication (JWT or OAuth) to protect API endpoints.
