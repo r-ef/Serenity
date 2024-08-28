@@ -1,11 +1,16 @@
-use std::time::{SystemTime, UNIX_EPOCH};
 use crate::blockchain::block::Block;
 use crate::blockchain::hashing::Hashing;
 use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
 use crate::utils::calculations;
 use log::{debug, info};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::Serialize;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
+use tokio::{sync::Mutex, task};
 
 use super::db::mongodb::core::MongoDB;
 
@@ -22,15 +27,15 @@ impl Blockchain {
         let mut blockchain = Blockchain {
             chain: chain.clone(),
             difficulty: calculations::calculate_difficulty(&chain),
-            db: db
+            db,
         };
 
         blockchain.load_blocks().await;
         blockchain
     }
 
-
-    pub async fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) {
+    pub async fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) -> (Duration, u32) {
+        let start = Instant::now();
         let prev_block = self.chain.last().unwrap().clone();
         let mut transactions = transaction_pool.pool.clone();
 
@@ -61,7 +66,8 @@ impl Blockchain {
         info!("Mining new block...");
     
         let mut hasher = Hashing::new(new_block.clone());
-        hasher.mine_block(self.difficulty);
+        // hasher.mine_block(self.difficulty);
+        hasher.mine_block2(self.difficulty);
         new_block.hash = hasher.block.hash.clone();
         self.db.insert_block(new_block.clone()).await.expect("Failed to insert block into database");
         self.chain.push(new_block);
@@ -76,8 +82,10 @@ impl Blockchain {
         if self.chain.len() % 10 == 0 { 
             self.adjust_difficulty();
         }
+
+        let duration = start.elapsed();
+        (duration, self.difficulty)
     }
-    
 
     pub fn adjust_difficulty(&mut self) {
         let last_block = self.chain.last().unwrap();
@@ -94,7 +102,10 @@ impl Blockchain {
     }
 
     pub async fn create_genesis_block(&mut self) -> Block {
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let mut genesis_block = Block {
             index: 0,
             timestamp,
@@ -116,7 +127,10 @@ impl Blockchain {
         assert_eq!(block.prev_hash, prev_block.hash);
 
         block.index = prev_block.index + 1;
-        block.timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        block.timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         block.prev_hash = prev_block.hash.clone();
 
         let mut hasher = Hashing::new(block.clone());

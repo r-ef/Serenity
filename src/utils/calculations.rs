@@ -1,5 +1,3 @@
-use log::debug;
-
 use crate::blockchain::{block::Block, transaction_pool::TransactionPool};
 
 const TARGET_BLOCK_TIME: u64 = 60; // Target block time in seconds

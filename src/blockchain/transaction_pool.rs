@@ -1,3 +1,4 @@
+use rayon::iter::IntoParallelIterator;
 use serde::Serialize;
 use crate::blockchain::transaction::Transaction;
 use super::db::mongodb::core::MongoDB;
@@ -7,6 +8,17 @@ pub struct TransactionPool {
     pub pool: Vec<Transaction>,
     #[serde(skip)]
     pub db: MongoDB
+}
+
+impl IntoParallelIterator for TransactionPool {
+
+    type Item = Transaction;
+
+    type Iter = rayon::vec::IntoIter<Self::Item>;
+
+    fn into_par_iter(self) -> Self::Iter {
+        self.pool.into_par_iter()
+    }
 }
 
 impl TransactionPool {
@@ -22,15 +34,7 @@ impl TransactionPool {
         self.pool.push(transaction);
     }
 
-    pub fn remove_transaction(&mut self, transaction: &Transaction) {
-        self.pool.retain(|tx| tx != transaction);
-    }
-
     pub fn clear_pool(&mut self) {
         self.pool.clear();
-    }
-
-    pub fn get_transactions(&self) -> Vec<Transaction> {
-        self.pool.clone()
     }
 }

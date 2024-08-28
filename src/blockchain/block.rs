@@ -16,6 +16,7 @@ pub struct Block {
     pub difficulty: u32,
 }
 
+#[allow(dead_code)]
 impl Block {
     pub fn new(index: u32, data: String, prev_hash: String) -> Block {
         let mut rng = rand::thread_rng();

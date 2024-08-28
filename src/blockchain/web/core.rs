@@ -5,6 +5,9 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::blockchain::core::Blockchain;
+use rocket::fs::{FileServer, relative, NamedFile};
+use rocket::http::uri::fmt::Kind::Path;
+use rocket::response::content::RawHtml;
 use crate::blockchain::db::mongodb::core::MongoDB;
 use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
@@ -47,11 +50,11 @@ async fn transaction(
 }
 
 #[post("/mine", format = "application/json", data = "<miner>")]
-async fn mine(miner: Json<MinerRequest>, blockchain: &rocket::State<SharedBlockchain>, pool: &rocket::State<SharedTransactionPool>) -> &'static str {
+async fn mine(miner: Json<MinerRequest>, blockchain: &rocket::State<SharedBlockchain>, pool: &rocket::State<SharedTransactionPool>) -> String {
     let mut blockchain = blockchain.lock().await;
     let mut pool = pool.lock().await;
-    blockchain.mine_block(&mut pool, &miner.address).await;
-    "Block mined"
+    let (duration, difficulty) = blockchain.mine_block(&mut pool, &miner.address).await;
+    "Block mined in ".to_owned() + duration.as_secs_f64().to_string().as_str() + " seconds" + " with difficulty " + difficulty.to_string().as_str()
 }
 
 #[get("/wallet/balance", format = "application/json", data = "<wallet>")]
@@ -72,6 +75,71 @@ async fn get_transactions(pool: &rocket::State<SharedTransactionPool>) -> Json<T
     let pool = pool.lock().await;
     debug!("Transaction pool: {:?}", pool);
     Json(pool.clone())
+}
+
+#[get("/")]
+async fn index() -> RawHtml<&'static str> {
+    RawHtml(
+        r#"
+        <!DOCTYPE html>
+        <html lang='en'>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>Serenity Blockchain</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    line-height: 1.6;
+                    color: #333;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    background-color: #f4f4f4;
+                }
+                .container {
+                    background-color: #fff;
+                    border-radius: 8px;
+                    padding: 30px;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                }
+                h1 {
+                    color: #2c3e50;
+                    border-bottom: 2px solid #3498db;
+                    padding-bottom: 10px;
+                }
+                p {
+                    font-size: 18px;
+                }
+                .cta-button {
+                    display: inline-block;
+                    background-color: #3498db;
+                    color: #fff;
+                    padding: 10px 20px;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    font-weight: bold;
+                    margin-top: 20px;
+                }
+                .cta-button:hover {
+                    background-color: #2980b9;
+                }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <h1>Welcome to Serenity Blockchain</h1>
+                <p>
+                    Serenity is a cutting-edge blockchain platform designed to revolutionize
+                    transaction security and efficiency. Our next-generation technology
+                    ensures unparalleled protection for your digital assets while providing
+                    a seamless user experience.
+                </p>
+            </div>
+        </body>
+        </html>
+        "#
+    )
 }
 
 #[allow(dead_code, unused_variables)]
@@ -97,5 +165,5 @@ pub async fn rocket() -> _ {
             rocket
         }))
         .manage(db)
-        .mount("/", routes![transaction, get_blockchain, mine, get_transactions, get_balance])
+        .mount("/", routes![transaction, get_blockchain, mine, get_transactions, get_balance, index])
 }
