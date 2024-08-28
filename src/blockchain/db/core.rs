@@ -46,7 +46,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn insert_block(&self, block: Block) -> Result<(), Error> {
+    pub async fn insert_block(&self, block: Block) -> Result<(), Error> {
         let conn = self.pool.get().expect("Failed to get connection.");
         conn.execute(
             "INSERT INTO blocks (\"index\", timestamp, data, prev_hash, hash, nonce) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -55,6 +55,7 @@ impl Database {
         
         for transaction in block.transactions {
             self.insert_transaction(&transaction).expect("Failed to insert transaction.");
+            // self.insert_transaction(&transaction);
         }
         
         Ok(())

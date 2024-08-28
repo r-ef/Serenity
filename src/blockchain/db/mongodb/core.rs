@@ -3,18 +3,21 @@
 use futures::TryStreamExt;
 use log::info;
 use mongodb::{ 
-	bson::{doc, Document},
-	Client, Collection,
+    bson::{doc, Document},
+    Client, Collection,
 };
 use serde::Serialize;
 use serde_json::to_string;
 
 use crate::blockchain::{block::Block, transaction::Transaction};
 
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, Serialize)]
 pub struct MongoDB {
+    #[serde(skip_serializing)]
     pub client: Client,
 }
+
 
 impl MongoDB {
     pub async fn new() -> MongoDB {
@@ -24,7 +27,7 @@ impl MongoDB {
         }
     }
 
-    pub fn insert_block(&self, block: Block) -> mongodb::error::Result<()> {
+    pub async fn insert_block(&self, block: Block) -> mongodb::error::Result<()> {
         let collection: Collection<Document> = self.client.database("SERENITY").collection("BLOCKCHAIN");
         let document = doc! {
             "index": block.index,
@@ -34,7 +37,26 @@ impl MongoDB {
             "hash": block.hash.clone(),
             "nonce": block.nonce as i64,
         };
-        let _ = collection.insert_one(document);
+        let _ = collection.insert_one(document).await;
+        debug!("Block inserted into MongoDB");
+        Ok(())
+    }
+
+    pub async fn get_balance(&self, address: &str) -> mongodb::error::Result<f64> {
+        let collection: Collection<Document> = self.client.database("SERENITY").collection("WALLETS");
+        let filter = doc! { "address": address };
+        let document = collection.find_one(filter).await?;
+        let document = document.unwrap_or_default();
+        let balance = document.get_f64("balance").unwrap_or_default();
+        Ok(balance)
+    }
+
+    pub async fn update_balance(&self, address: &str, balance: f64) -> mongodb::error::Result<()> {
+        let collection: Collection<Document> = self.client.database("SERENITY").collection("WALLETS");
+        let filter = doc! { "address": address };
+        let update = doc! { "$set": { "balance": balance } };
+        let options = mongodb::options::UpdateOptions::builder().upsert(true).build();
+        let _ = collection.update_one(filter, update).with_options(options).await?;
         Ok(())
     }
 
@@ -47,6 +69,14 @@ impl MongoDB {
         Ok(())
     }
 
+    pub async fn migrate(&self) -> mongodb::error::Result<()> {
+        let db = self.client.database("SERENITY");
+        let _ = db.create_collection("BLOCKCHAIN").await?;
+        let _ = db.create_collection("TRANSACTIONS").await?;
+        let _ = db.create_collection("WALLETS").await?;
+        Ok(())
+    }
+
     pub async fn get_blocks(&self) -> mongodb::error::Result<Vec<Block>> {
         let collection: Collection<Document> = self.client.database("SERENITY").collection("BLOCKCHAIN");
         let mut cursor = collection.find(doc! {}).await?;
@@ -54,12 +84,12 @@ impl MongoDB {
     
         while let Some(doc) = cursor.try_next().await? {
             let block = Block {
-                index: doc.get_i64("index").unwrap() as u32,
-                timestamp: doc.get_i64("timestamp").unwrap() as u64,
-                data: doc.get_str("data").unwrap().to_string(),
-                prev_hash: doc.get_str("prev_hash").unwrap().to_string(),
-                hash: doc.get_str("hash").unwrap().to_string(),
-                nonce: doc.get_i64("nonce").unwrap() as u64,
+                index: doc.get_i64("index").unwrap_or_default() as u32,
+                timestamp: doc.get_i64("timestamp").unwrap_or_default() as u64,
+                data: doc.get_str("data").unwrap_or_default().to_string(),
+                prev_hash: doc.get_str("prev_hash").unwrap_or_default().to_string(),
+                hash: doc.get_str("hash").unwrap_or_default().to_string(),
+                nonce: doc.get_i64("nonce").unwrap_or_default() as u64,
                 transactions: vec![],
             };
             blocks.push(block);

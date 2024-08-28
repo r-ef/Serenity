@@ -4,11 +4,12 @@ use crate::blockchain::hashing::Hashing;
 use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
 use crate::utils::calculations;
-use log::info;
+use log::{debug, info};
+use serde::Serialize;
 
 use super::db::mongodb::core::MongoDB;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Blockchain {
     pub chain: Vec<Block>,
     pub difficulty: u32,
@@ -16,14 +17,14 @@ pub struct Blockchain {
 }
 
 impl Blockchain {
-    pub fn new(db: MongoDB) -> Blockchain {
+    pub async fn new(db: MongoDB) -> Blockchain {
         let mut blockchain = Blockchain {
             chain: vec![],
             difficulty: 1,
             db: db
         };
 
-        blockchain.load_blocks();
+        blockchain.load_blocks().await;
         blockchain
     }
 
@@ -78,10 +79,12 @@ impl Blockchain {
         let mut hasher = Hashing::new(new_block.clone());
         hasher.mine_block(self.difficulty);
         new_block.hash = hasher.block.hash.clone();
-        self.db.insert_block(new_block.clone()).expect("Failed to insert block into database");
+        self.db.insert_block(new_block.clone()).await.expect("Failed to insert block into database");
         self.chain.push(new_block);
         let reward_amount = reward_transaction.clone().amount;
-        self.db.update_balance(miner_address, self.db.get_balance(miner_address).unwrap() + reward_amount).expect("Failed to update balance");
+        let amount = self.db.get_balance(miner_address).await.unwrap_or(0.0);
+        self.db.update_balance(miner_address, amount + reward_amount).await.expect("Failed to update balance");
+        debug!("Reward transaction: {:?}", reward_transaction);
         transaction_pool.clear_pool();
         info!("Block mined and added to the chain");
     
@@ -105,7 +108,7 @@ impl Blockchain {
         info!("Adjusted difficulty to: {}", self.difficulty);
     }
 
-    pub fn create_genesis_block(&mut self) -> Block {
+    pub async fn create_genesis_block(&mut self) -> Block {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let mut genesis_block = Block {
             index: 0,
@@ -118,11 +121,11 @@ impl Blockchain {
         };
         genesis_block.hash = Hashing::new(genesis_block.clone()).calculate_hash();
 
-        self.db.insert_block(genesis_block.clone()).unwrap();
+        self.db.insert_block(genesis_block.clone()).await.unwrap();
         genesis_block
     }
 
-    pub fn add_block(&mut self, mut block: Block) -> bool {
+    pub async fn add_block(&mut self, mut block: Block) -> bool {
         let prev_block = self.chain.last().unwrap();
         assert_eq!(block.prev_hash, prev_block.hash);
 
@@ -134,17 +137,17 @@ impl Blockchain {
         hasher.mine_block(self.difficulty);
         block.hash = hasher.block.hash.clone();
 
-        self.db.insert_block(block.clone()).unwrap();
+        self.db.insert_block(block.clone()).await.unwrap();
 
         info!("Block mined: {:?}", block);
         self.chain.push(block);
         true
     }
 
-    fn load_blocks(&mut self) {
-        let blocks = self.db.get_blocks().unwrap_or_default();
+    pub async fn load_blocks(&mut self) {
+        let blocks = self.db.get_blocks().await.unwrap();
         if blocks.is_empty() {
-            let genesis_block = self.create_genesis_block();
+            let genesis_block = self.create_genesis_block().await;
             self.chain.push(genesis_block);
         } else {
             self.chain.extend(blocks);

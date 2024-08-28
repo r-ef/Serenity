@@ -1,17 +1,16 @@
-use std::sync::{Arc, Mutex};
 use crate::blockchain::transaction::Transaction;
 use crate::utils::calculations::calculate_fee;
-use crate::blockchain::db::core::Database;
+use crate::blockchain::db::mongodb::core::MongoDB;
 
 pub struct Wallet {
     pub address: String,
     pub balance: f64,
-    pub db: Arc<Mutex<Database>>,
+    pub db: MongoDB,
 }
 
 impl Wallet {
-    pub fn new(address: String, db: Arc<Mutex<Database>>) -> Wallet {
-        let balance = db.lock().unwrap().get_balance(&address).unwrap_or(0.0);
+    pub async fn new(address: String, db: MongoDB) -> Wallet {
+        let balance = db.get_balance(&address).await.unwrap_or(0.0);
 
         Wallet {
             address,
@@ -20,7 +19,7 @@ impl Wallet {
         }
     }
 
-    pub fn send_money(&mut self, receiver: String, amount: f64) -> Transaction {
+    pub async fn send_money(&mut self, receiver: String, amount: f64) -> Transaction {
         let fee = calculate_fee(amount);
         let total_amount = amount + fee;
 
@@ -38,22 +37,20 @@ impl Wallet {
         };
 
         self.balance -= total_amount;
+        let _ = self.db.update_balance(&self.address, self.balance).await;
+        let _ = self.db.insert_transaction(&transaction).await;
 
-        let db = self.db.lock().unwrap();
-        db.update_balance(&self.address, self.balance).expect("Failed to update balance");
-        db.insert_transaction(&transaction).expect("Failed to insert transaction");
-
-        let mut receiver_balance = db.get_balance(&receiver).unwrap_or(0.0);
+        let mut receiver_balance = self.db.get_balance(&receiver).await.unwrap_or(0.0);
         receiver_balance += amount;
-        db.update_balance(&receiver, receiver_balance).expect("Failed to update receiver's balance");
+        let _ = self.db.update_balance(&receiver, receiver_balance).await;
 
         transaction
     }
 
-    pub fn receive_money(&mut self, amount: f64) {
+    pub async fn receive_money(&mut self, amount: f64) {
         self.balance += amount;
 
-        self.db.lock().unwrap().update_balance(&self.address, self.balance).expect("Failed to update balance");
+        let _ = self.db.update_balance(&self.address, self.balance).await;
     }
 
     pub fn get_balance(&self) -> f64 {

@@ -16,13 +16,19 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(sender: String, receiver: String, amount: f64, timestamp: u64, fee: f64) -> Transaction {
+    pub fn new(
+        sender: String,
+        receiver: String,
+        amount: f64,
+        timestamp: u64,
+        fee: f64,
+    ) -> Transaction {
         Transaction {
             sender,
             receiver,
             amount,
             timestamp,
-            fee
+            fee,
         }
     }
 
