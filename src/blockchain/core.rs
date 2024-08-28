@@ -66,8 +66,7 @@ impl Blockchain {
         info!("Mining new block...");
     
         let mut hasher = Hashing::new(new_block.clone());
-        // hasher.mine_block(self.difficulty);
-        hasher.mine_block2(self.difficulty);
+        hasher.mine_block(self.difficulty);
         new_block.hash = hasher.block.hash.clone();
         self.db.insert_block(new_block.clone()).await.expect("Failed to insert block into database");
         self.chain.push(new_block);
