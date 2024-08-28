@@ -5,7 +5,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::blockchain::core::Blockchain;
-use crate::blockchain::db::core::Database;
 use crate::blockchain::db::mongodb::core::MongoDB;
 use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;

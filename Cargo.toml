@@ -26,3 +26,4 @@ r2d2 = "0.8.10"
 r2d2_sqlite = { version = "0.25.0", features = ["bundled"] }
 mongodb = {version = "3.0.1"}
 rocket_db_pools = { version = "0.2.0", features = ["mongodb"] }
+reqwest = "0.12.7"

@@ -18,9 +18,10 @@ pub struct Blockchain {
 
 impl Blockchain {
     pub async fn new(db: MongoDB) -> Blockchain {
+        let chain = db.get_blocks().await.unwrap_or_default();
         let mut blockchain = Blockchain {
-            chain: vec![],
-            difficulty: 1,
+            chain: chain.clone(),
+            difficulty: calculations::calculate_difficulty(&chain),
             db: db
         };
 
@@ -28,24 +29,6 @@ impl Blockchain {
         blockchain
     }
 
-    pub fn calculate_difficulty(&self, chain: &Vec<Block>) -> u32 {
-        let mut difficulty = 1;
-        let mut last_10_blocks = chain.iter().rev().take(10).cloned().collect::<Vec<_>>();
-
-        while last_10_blocks.len() > 1 {
-            let time_diff = last_10_blocks[0].timestamp - last_10_blocks[9].timestamp;
-
-            if time_diff < 60 {
-                difficulty += 1;
-            } else {
-                difficulty -= 1;
-            }
-
-            last_10_blocks = last_10_blocks.into_iter().skip(1).collect();
-        }
-
-        difficulty
-    }
 
     pub async fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) {
         let prev_block = self.chain.last().unwrap().clone();
@@ -72,6 +55,7 @@ impl Blockchain {
             hash: String::new(),
             nonce: 0,
             transactions,
+            difficulty: self.difficulty,
         };
     
         info!("Mining new block...");
@@ -84,6 +68,7 @@ impl Blockchain {
         let reward_amount = reward_transaction.clone().amount;
         let amount = self.db.get_balance(miner_address).await.unwrap_or(0.0);
         self.db.update_balance(miner_address, amount + reward_amount).await.expect("Failed to update balance");
+        self.db.insert_transaction(&reward_transaction).await.expect("Failed to insert transaction into database");
         debug!("Reward transaction: {:?}", reward_transaction);
         transaction_pool.clear_pool();
         info!("Block mined and added to the chain");
@@ -118,6 +103,7 @@ impl Blockchain {
             hash: String::new(),
             nonce: 0,
             transactions: vec![],
+            difficulty: self.difficulty,
         };
         genesis_block.hash = Hashing::new(genesis_block.clone()).calculate_hash();
 

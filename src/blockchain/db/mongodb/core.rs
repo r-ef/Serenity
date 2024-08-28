@@ -1,7 +1,6 @@
-// BIB TODO
 #![allow(unused)]
 use futures::TryStreamExt;
-use log::info;
+use log::{debug, info};
 use mongodb::{ 
     bson::{doc, Document},
     Client, Collection,
@@ -36,6 +35,7 @@ impl MongoDB {
             "prev_hash": block.prev_hash.clone(),
             "hash": block.hash.clone(),
             "nonce": block.nonce as i64,
+            "difficulty": block.difficulty as i64,
         };
         let _ = collection.insert_one(document).await;
         debug!("Block inserted into MongoDB");
@@ -69,6 +69,19 @@ impl MongoDB {
         Ok(())
     }
 
+    pub async fn get_transactions(&self) -> mongodb::error::Result<Vec<Transaction>> {
+        let collection: Collection<Document> = self.client.database("SERENITY").collection("TRANSACTIONS");
+        let mut cursor = collection.find(doc! {}).await?;
+        let mut transactions = vec![];
+
+        while let Some(doc) = cursor.try_next().await? {
+            let transaction: Transaction = serde_json::from_str(doc.get_str("transaction").unwrap_or_default()).unwrap();
+            transactions.push(transaction);
+        }
+
+        Ok(transactions)
+    }
+
     pub async fn migrate(&self) -> mongodb::error::Result<()> {
         let db = self.client.database("SERENITY");
         let _ = db.create_collection("BLOCKCHAIN").await?;
@@ -77,7 +90,7 @@ impl MongoDB {
         Ok(())
     }
 
-    pub async fn get_blocks(&self) -> mongodb::error::Result<Vec<Block>> {
+        pub async fn get_blocks(&self) -> mongodb::error::Result<Vec<Block>> {
         let collection: Collection<Document> = self.client.database("SERENITY").collection("BLOCKCHAIN");
         let mut cursor = collection.find(doc! {}).await?;
         let mut blocks = vec![];
@@ -91,10 +104,11 @@ impl MongoDB {
                 hash: doc.get_str("hash").unwrap_or_default().to_string(),
                 nonce: doc.get_i64("nonce").unwrap_or_default() as u64,
                 transactions: vec![],
+                difficulty: doc.get_i64("difficulty").unwrap_or(1) as u32,
             };
+            debug!("Block: {:?}", block);
             blocks.push(block);
         }
-    
         Ok(blocks)
     }
 }

@@ -13,6 +13,7 @@ pub struct Block {
     pub hash: String,
     pub nonce: u64,
     pub transactions: Vec<Transaction>,
+    pub difficulty: u32,
 }
 
 impl Block {
@@ -28,6 +29,7 @@ impl Block {
             hash: String::new(),
             nonce: start_nonce,
             transactions: vec![],
+            difficulty: 0,
         }
     }
 }
