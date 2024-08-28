@@ -12,6 +12,7 @@ mod blockchain {
     }
     pub mod db {
         pub mod core;
+        pub mod tables;
     }
 }
 
