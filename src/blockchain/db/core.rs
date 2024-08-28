@@ -1,9 +1,7 @@
 use ecdsa::Error;
-use log::debug;
 use r2d2::Pool;
 use r2d2_sqlite::{rusqlite::params, SqliteConnectionManager};
 use serde::Serialize;
-use serde_json::from_str;
 use crate::blockchain::{block::Block, transaction::Transaction};
 use crate::utils::calculations::calculate_fee;
 
@@ -175,14 +173,12 @@ impl Database {
         let mut stmt = conn.prepare("SELECT \"index\", timestamp, data, prev_hash, hash, nonce, transactions FROM blocks")
             .expect("Failed to prepare query.");
     
-        let block_iter = stmt.query_map([], |row| {
-            println!("Row: {:?}", row);
-    
+        let block_iter = stmt.query_map([], |row| {    
             let transactions_json: Option<String> = row.get(6)?;
     
             let transactions: Vec<Transaction> = match transactions_json {
                 Some(json) => serde_json::from_str(&json).expect("Failed to deserialize transactions"),
-                None => vec![], // If the column is NULL, use an empty vector
+                None => vec![],
             };
     
             Ok(Block {

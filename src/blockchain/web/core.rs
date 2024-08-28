@@ -1,3 +1,4 @@
+#![allow(unused)]
 use log::debug;
 use rocket::serde::{json::Json, Deserialize, Serialize};
 use std::sync::{Mutex, Arc};

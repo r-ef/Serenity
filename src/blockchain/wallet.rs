@@ -11,7 +11,6 @@ pub struct Wallet {
 
 impl Wallet {
     pub fn new(address: String, db: Arc<Mutex<Database>>) -> Wallet {
-        // Retrieve the balance from the database if it exists
         let balance = db.lock().unwrap().get_balance(&address).unwrap_or(0.0);
 
         Wallet {
@@ -40,7 +39,7 @@ impl Wallet {
 
         self.balance -= total_amount;
 
-        let mut db = self.db.lock().unwrap();
+        let db = self.db.lock().unwrap();
         db.update_balance(&self.address, self.balance).expect("Failed to update balance");
         db.insert_transaction(&transaction).expect("Failed to insert transaction");
 

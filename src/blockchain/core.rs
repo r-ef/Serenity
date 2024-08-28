@@ -1,11 +1,9 @@
-use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::blockchain::block::Block;
 use crate::blockchain::hashing::Hashing;
 use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
 use crate::blockchain::db::core::Database;
-use crate::blockchain::wallet::Wallet;
 use crate::utils::calculations;
 use log::info;
 use serde::Serialize;

@@ -21,7 +21,7 @@ impl TransactionPool {
     pub fn add_transaction(&mut self, transaction: Transaction) {
         let conn = self.db.lock().unwrap();
         if let Err(e) = conn.insert_transaction(&transaction) {
-            eprintln!("Error inserting transaction: {:?}", e);
+            debug!("Error inserting transaction: {:?}", e);
         }
 
         self.pool.push(transaction);
