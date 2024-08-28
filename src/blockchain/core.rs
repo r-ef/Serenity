@@ -49,16 +49,17 @@ impl Blockchain {
     pub fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) {
         let prev_block = self.chain.last().unwrap().clone();
         let mut transactions = transaction_pool.pool.clone();
-    
-        let total_fees: f64 = transactions.iter().map(|tx| tx.fee).sum();
+
+        let amount = calculations::calculate_mining_reward(self.chain.len() as u64, &transaction_pool);
     
         let reward_transaction = Transaction {
             sender: "block_reward".to_string(),
             receiver: miner_address.to_string(),
-            amount: calculations::calculate_block_subsidy(self.chain.len() as u64) + total_fees,
-            fee: 0.0,
+            amount: amount,
+            fee: calculations::calculate_fee(amount),
             timestamp: chrono::Utc::now().timestamp() as u64,
         };
+        println!("Reward transaction: {:?}", reward_transaction);
     
         transactions.push(reward_transaction.clone());
     
