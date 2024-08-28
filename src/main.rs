@@ -13,6 +13,9 @@ mod blockchain {
     pub mod db {
         pub mod core;
         pub mod tables;
+        pub mod mongodb {
+            pub mod core;
+        }
     }
 }
 
@@ -24,5 +27,5 @@ mod utils {
 #[allow(dead_code)]
 async fn main() {
     utils::logging::setup_logger();
-    let _ = blockchain::web::core::rocket().launch().await;
+    let _ = blockchain::web::core::rocket().await.launch().await;
 }

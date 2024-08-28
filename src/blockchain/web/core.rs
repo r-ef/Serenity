@@ -9,6 +9,7 @@ use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
 use crate::utils::calculations::calculate_fee;
 use crate::blockchain::wallet::Wallet;
+use crate::blockchain::db::mongodb;
 
 type SharedBlockchain = Arc<Mutex<Blockchain>>;
 type SharedTransactionPool = Arc<Mutex<TransactionPool>>;
@@ -44,7 +45,7 @@ fn transaction(
 }
 
 #[post("/mine", format = "application/json", data = "<miner>")]
-fn mine(miner: Json<MinerRequest>, _blockchain: &rocket::State<SharedBlockchain>, pool: &rocket::State<SharedTransactionPool>) -> &'static str {
+async fn mine(miner: Json<MinerRequest>, _blockchain: &rocket::State<SharedBlockchain>, pool: &rocket::State<SharedTransactionPool>) -> &'static str {
     let mut blockchain = _blockchain.lock().expect("Failed to lock blockchain");
     let mut pool = pool.lock().unwrap();
     blockchain.mine_block(&mut pool, &miner.address);
@@ -73,7 +74,7 @@ fn get_transactions(pool: &rocket::State<SharedTransactionPool>) -> Json<Transac
 
 #[allow(dead_code, unused_variables)]
 #[launch]
-pub fn rocket() -> _ {
+pub async fn rocket() -> _ {
     let db = Arc::new(Mutex::new(Database::new("database.db")));
     db.lock().unwrap().create_tables().expect("Failed to create tables");
 
@@ -84,6 +85,8 @@ pub fn rocket() -> _ {
     }
 
     let blockchain_state = Arc::new(Mutex::new(blockchain));
+    let db = mongodb::core::MongoDB::new().await;
+    // let transaction_pool = Arc::new(Mutex::new(TransactionPool::new(db.clone())));
     let transaction_pool = Arc::new(Mutex::new(TransactionPool::new(db.clone())));
 
     rocket::build()

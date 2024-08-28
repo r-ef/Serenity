@@ -3,24 +3,24 @@ use crate::blockchain::block::Block;
 use crate::blockchain::hashing::Hashing;
 use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
-use crate::blockchain::db::core::Database;
 use crate::utils::calculations;
 use log::info;
-use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
+use super::db::mongodb::core::MongoDB;
+
+#[derive(Debug, Clone)]
 pub struct Blockchain {
     pub chain: Vec<Block>,
     pub difficulty: u32,
-    pub db: Database,
+    pub db: MongoDB,
 }
 
 impl Blockchain {
-    pub fn new() -> Blockchain {
+    pub fn new(db: MongoDB) -> Blockchain {
         let mut blockchain = Blockchain {
             chain: vec![],
             difficulty: 1,
-            db: Database::new("database.db"),
+            db: db
         };
 
         blockchain.load_blocks();
@@ -46,7 +46,7 @@ impl Blockchain {
         difficulty
     }
 
-    pub fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) {
+    pub async fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) {
         let prev_block = self.chain.last().unwrap().clone();
         let mut transactions = transaction_pool.pool.clone();
 
