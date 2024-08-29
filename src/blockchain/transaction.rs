@@ -1,11 +1,17 @@
+use std::ops::Deref;
+use std::fmt::{self, Display};
+
+use ecdsa::Error;
 use ed25519_dalek::Signer;
 
-use ed25519_dalek::Signature;
-use ed25519_dalek::SigningKey;
+use ed25519_dalek::{Signature, SigningKey};
+use serde_with::{serde_as, skip_serializing_none, DeserializeAs, SerializeAs};
+use faster_hex::hex_encode;
 use rand::rngs::OsRng;
 use serde::Deserialize;
 use serde::Serialize;
 
+#[skip_serializing_none]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Transaction {
     pub sender: String,
@@ -58,5 +64,44 @@ impl Transaction {
         message: Vec<u8>,
     ) {
         assert!(signing_key.verify(message.as_slice(), signature).is_ok())
+    }
+}
+
+/// SHA3-256 hash
+pub const TRANSACTION_ID_LENGTH: usize = 32;
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub struct TransactionID([u8; TRANSACTION_ID_LENGTH]);
+
+impl TransactionID {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn as_hex(&self) -> String {
+        format!("{}", self)
+    }
+}
+
+impl AsRef<[u8]> for TransactionID {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl Deref for TransactionID {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+
+impl Display for TransactionID {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buf = [0u8; TRANSACTION_ID_LENGTH * 2];
+        let _ = hex_encode(self, &mut buf);
+        write!(f, "{}", String::from_utf8_lossy(&buf))
     }
 }

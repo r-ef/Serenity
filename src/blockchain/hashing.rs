@@ -1,12 +1,10 @@
-use log::debug;
+use log::{debug, error, info};
 use sha2::{Sha256, Digest};
 use crate::blockchain::block::Block;
-use num_bigint::BigUint;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use rayon::prelude::*;
-
 
 pub struct Hashing {
     pub block: Block,
@@ -14,9 +12,7 @@ pub struct Hashing {
 
 impl Hashing {
     pub fn new(block: Block) -> Hashing {
-        Hashing {
-            block,
-        }
+        Hashing { block }
     }
 
     pub fn calculate_hash(&self) -> String {
@@ -75,19 +71,20 @@ impl Hashing {
                     }
                 });
             }
-            let elapsed = now.elapsed();
-            info!("Mining took: {}s", elapsed.as_secs_f64());
+            s.spawn(|_| {
+                let elapsed = now.elapsed();
+                info!("Mining took: {}s", elapsed.as_secs_f64());
+            });
+
             let result = result.lock().unwrap();
             result.clone()
         });
-
-        debug!("Result: {:?}", result);
         if let Some((nonce, hash)) = result {
             self.block.nonce = nonce;
             self.block.hash = hash;
             info!("Block mined: nonce = {}, hash = {}", self.block.nonce, self.block.hash);
         } else {
-            error!("Mining failed to produce a result");
+            error!("Failed to mine block.");
         }
     }
 }
