@@ -4,13 +4,8 @@ use crate::blockchain::transaction::Transaction;
 use crate::blockchain::transaction_pool::TransactionPool;
 use crate::utils::calculations;
 use log::{debug, info};
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::Serialize;
-use std::{
-    sync::Arc,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
-};
-use tokio::{sync::Mutex, task};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::db::mongodb::core::MongoDB;
 

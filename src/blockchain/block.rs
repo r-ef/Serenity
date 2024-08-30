@@ -1,13 +1,7 @@
-use std::{fmt, time::{SystemTime, UNIX_EPOCH}};
-use ecdsa::Error;
+use std::time::{SystemTime, UNIX_EPOCH};
 use rand::Rng;
-use serde::{Serialize, Deserialize, Serializer, Deserializer};
-use std::convert::AsRef;
-use ibig::UBig;
-use std::ops::{Deref, DerefMut};
-use std::fmt::{Debug, Display};
-use sha3::{Digest, Sha3_256};
-use faster_hex::hex_encode;
+use serde::{Serialize, Deserialize};
+use std::fmt::Debug;
 
 use super::transaction::Transaction;
 
@@ -23,7 +17,6 @@ pub struct Block {
     pub difficulty: u32,
 }
 
-/// SHA3-256 hash
 pub const BLOCK_ID_LENGTH: usize = 32;
 
 #[derive(Clone, Copy, Default, Eq, Hash, PartialEq)]

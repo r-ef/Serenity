@@ -1,11 +1,10 @@
 use std::ops::Deref;
 use std::fmt::{self, Display};
 
-use ecdsa::Error;
 use ed25519_dalek::Signer;
 
 use ed25519_dalek::{Signature, SigningKey};
-use serde_with::{serde_as, skip_serializing_none, DeserializeAs, SerializeAs};
+use serde_with::skip_serializing_none;
 use faster_hex::hex_encode;
 use rand::rngs::OsRng;
 use serde::Deserialize;
