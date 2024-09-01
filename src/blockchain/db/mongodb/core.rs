@@ -42,6 +42,15 @@ impl MongoDB {
         Ok(())
     }
 
+    pub async fn update_block_transactions(&self, block: &Block, transaction: &Transaction) -> mongodb::error::Result<()> {
+        // add transaction to block
+        let collection: Collection<Document> = self.client.database("SERENITY").collection("BLOCKCHAIN");
+        let filter = doc! { "index": block.index };
+        let update = doc! { "$push": { "transactions": to_string(transaction).unwrap() } };
+        let _ = collection.update_one(filter, update).await?;
+        Ok(())
+    }
+
     pub async fn get_balance(&self, address: &str) -> mongodb::error::Result<f64> {
         let collection: Collection<Document> = self.client.database("SERENITY").collection("WALLETS");
         let filter = doc! { "address": address };

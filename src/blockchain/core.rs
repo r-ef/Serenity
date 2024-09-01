@@ -5,7 +5,7 @@ use crate::blockchain::transaction_pool::TransactionPool;
 use crate::utils::calculations;
 use log::{debug, info};
 use serde::Serialize;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::{borrow::BorrowMut, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
 
 use super::db::mongodb::core::MongoDB;
 
@@ -31,15 +31,18 @@ impl Blockchain {
 
     pub async fn mine_block(&mut self, transaction_pool: &mut TransactionPool, miner_address: &str) -> (Duration, u32) {
         let start = Instant::now();
-        let prev_block = self.chain.last().unwrap().clone();
+        let prev_block = self.chain.last().unwrap();
+        let mut prev_block_mutable = prev_block.clone();
+        let prev_block_mutable = prev_block_mutable.borrow_mut();
         let mut transactions = transaction_pool.pool.clone();
-
-        let amount = calculations::calculate_mining_reward(self.chain.len() as u64, &transaction_pool);
+    
+        let chain_len = self.chain.len() as u64;
+        let amount = calculations::calculate_mining_reward(chain_len, &transaction_pool);
     
         let reward_transaction = Transaction {
             sender: "block_reward".to_string(),
             receiver: miner_address.to_string(),
-            amount: amount,
+            amount,
             fee: calculations::calculate_fee(amount),
             timestamp: chrono::Utc::now().timestamp() as u64,
         };
@@ -47,38 +50,40 @@ impl Blockchain {
     
         transactions.push(reward_transaction.clone());
     
-        let mut new_block = Block {
-            index: prev_block.index + 1,
-            timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-            data: transactions.iter().map(|tx| tx.to_string()).collect::<Vec<_>>().join("\n"),
-            prev_hash: prev_block.hash.clone(),
-            hash: String::new(),
-            nonce: 0,
-            transactions,
-            difficulty: self.difficulty,
-        };
+        prev_block_mutable.transactions.extend(transactions.clone());
+        prev_block_mutable.data = prev_block.transactions.iter().map(|tx| tx.to_string()).collect::<Vec<_>>().join("\n");
     
-        info!("Mining new block...");
+        info!("Mining block...");
     
-        let mut hasher = Hashing::new(new_block.clone());
+        let mut hasher = Hashing::new(prev_block.clone());
         hasher.mine_block(self.difficulty);
-        new_block.hash = hasher.block.hash.clone();
-        self.db.insert_block(new_block.clone()).await.expect("Failed to insert block into database");
-        self.chain.push(new_block);
+        prev_block_mutable.hash = hasher.block.hash.clone();
+        self.create_transaction(reward_transaction.clone()).await;
         let reward_amount = reward_transaction.clone().amount;
         let amount = self.db.get_balance(miner_address).await.unwrap_or(0.0);
         self.db.update_balance(miner_address, amount + reward_amount).await.expect("Failed to update balance");
         self.db.insert_transaction(&reward_transaction).await.expect("Failed to insert transaction into database");
         debug!("Reward transaction: {:?}", reward_transaction);
         transaction_pool.clear_pool();
-        info!("Block mined and added to the chain");
+        info!("Block mined and transactions added to the chain");
     
         if self.chain.len() % 10 == 0 { 
             self.adjust_difficulty();
         }
-
+    
         let duration = start.elapsed();
         (duration, self.difficulty)
+    }
+
+    pub async fn create_transaction(&mut self, transaction: Transaction) {
+        if self.chain.is_empty() {
+            self.create_genesis_block().await;
+        } else {
+            let block = self.chain.last_mut().unwrap();
+            block.transactions.push(transaction.clone());
+            block.data = block.transactions.iter().map(|tx| tx.to_string()).collect::<Vec<_>>().join("\n");
+            self.db.update_block_transactions(block, &transaction).await.expect("Failed to update block transactions");
+        }
     }
 
     pub fn adjust_difficulty(&mut self) {
