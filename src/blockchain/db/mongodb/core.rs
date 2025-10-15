@@ -123,7 +123,8 @@ impl MongoDB {
 }
 
 pub async fn connect() -> mongodb::error::Result<Client> {
-    let uri = "mongodb+srv://wiseleet:9MMeTZLzvP1nfT1W@serenitydb.uminc.mongodb.net/?retryWrites=true&w=majority&appName=SerenityDB";
+    // Read MongoDB connection string from environment. Do not hardcode secrets.
+    let uri = std::env::var("MONGODB_URI").unwrap_or_else(|_| "mongodb://127.0.0.1:27017".to_string());
 
     let client = Client::with_uri_str(uri).await?;
     let db = client.database("SERENITY");

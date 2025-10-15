@@ -1,1 +1,0 @@
-Use encryption to secure communications between nodes and transactions
